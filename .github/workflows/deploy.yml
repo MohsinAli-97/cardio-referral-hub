@@ -1,5 +1,4 @@
 name: Deploy to Hostinger
-
 on:
   push:
     branches:
@@ -15,20 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: .
-
+        working-directory: cardio-referral-hub
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        # no version here (uses packageManager from package.json)
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: pnpm
+          cache-dependency-path: 'cardio-referral-hub/pnpm-lock.yaml'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -36,7 +35,11 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Deploy static site to Hostinger (FTP)
+      # DEBUG STEP: This lets us see exactly where the files are
+      - name: List build files
+        run: ls -R dist/
+
+      - name: Deploy static site to Hostinger (FTP/FTPS)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -44,5 +47,6 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
           port: 21
-          local-dir: ./dist/public/
+          # This path must match exactly where index.html sits
+          local-dir: ./cardio-referral-hub/dist/public/
           server-dir: ./public_html/
