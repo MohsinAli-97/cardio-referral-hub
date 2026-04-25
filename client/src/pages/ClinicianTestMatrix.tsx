@@ -337,8 +337,8 @@ export default function ClinicianTestMatrix() {
               These tests have the most clinicians not ordering them — great outreach targets
             </p>
             <div className="space-y-2">
-              {summary.underutilized.map(([test, gapCount]) => (
-                <div key={test} className="flex items-center justify-between">
+              {summary.underutilized.map(([test, gapCount], idx) => (
+                <div key={`underutil-${idx}-${test}`} className="flex items-center justify-between">
                   <span className="text-sm font-medium">{test}</span>
                   <div className="flex items-center gap-2">
                     <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
@@ -373,10 +373,10 @@ export default function ClinicianTestMatrix() {
               These tests are most frequently ordered across all clinicians
             </p>
             <div className="space-y-2">
-              {summary.popular.map(([test, count]) => {
+              {summary.popular.map(([test, count], idx) => {
                 const maxPop = summary.popular[0]?.[1] || 1;
                 return (
-                  <div key={test} className="flex items-center justify-between">
+                  <div key={`popular-${idx}-${test}`} className="flex items-center justify-between">
                     <span className="text-sm font-medium">{test}</span>
                     <div className="flex items-center gap-2">
                       <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
@@ -514,8 +514,8 @@ export default function ClinicianTestMatrix() {
                       <TooltipContent>Number of test types not ordered</TooltipContent>
                     </Tooltip>
                   </th>
-                  {CORE_TESTS.map(test => (
-                    <th key={test} className="text-center py-2.5 px-1 font-semibold min-w-[55px]">
+                  {CORE_TESTS.map((test, tIdx) => (
+                    <th key={`hdr-${tIdx}`} className="text-center py-2.5 px-1 font-semibold min-w-[55px]">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="cursor-help">{TEST_SHORT_LABELS[test] || test}</span>
@@ -529,7 +529,7 @@ export default function ClinicianTestMatrix() {
               <tbody>
                 {filteredData.map((d, i) => (
                   <tr
-                    key={d.clinician}
+                    key={`row-${i}-${d.clinician}`}
                     className={`border-b border-border/30 transition-colors hover:bg-muted/40 ${
                       i % 2 === 0 ? '' : 'bg-muted/10'
                     }`}
@@ -553,7 +553,7 @@ export default function ClinicianTestMatrix() {
                         </span>
                       )}
                     </td>
-                    {CORE_TESTS.map(test => {
+                    {CORE_TESTS.map((test, tIdx) => {
                       const count = d.testCounts[test] || 0;
                       const pct = d.testPercentages[test] || 0;
                       const cellColor = viewMode === 'heatmap'
@@ -563,7 +563,7 @@ export default function ClinicianTestMatrix() {
                           : '';
 
                       return (
-                        <td key={test} className="text-center py-1.5 px-1">
+                        <td key={`cell-${i}-${tIdx}`} className="text-center py-1.5 px-1">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div
@@ -640,7 +640,7 @@ export default function ClinicianTestMatrix() {
                   .slice(0, 20)
                   .map((d, i) => (
                     <tr
-                      key={d.clinician}
+                      key={`outreach-${i}-${d.clinician}`}
                       className={`border-b border-border/50 transition-colors hover:bg-muted/30 ${
                         i % 2 === 0 ? '' : 'bg-muted/10'
                       }`}
@@ -654,9 +654,9 @@ export default function ClinicianTestMatrix() {
                       </td>
                       <td className="py-2.5 px-4">
                         <div className="flex flex-wrap gap-1.5">
-                          {d.gapTests.map(test => (
+                          {d.gapTests.map((test, gIdx) => (
                             <span
-                              key={test}
+                              key={`gap-${gIdx}-${test}`}
                               className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-xs border border-red-200"
                             >
                               {test}

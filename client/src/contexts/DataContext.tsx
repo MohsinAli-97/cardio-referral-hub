@@ -21,8 +21,29 @@ interface DataState {
 
 const DataContext = createContext<DataState | null>(null);
 
-const EXCEL_URL = '/manus-storage/referral-data_93e2ca8b.xlsx';
+const EXCEL_URL = '/manus-storage/referral-data_e62359e1.xlsx';
 const STORAGE_KEY = 'nhc-referral-data';
+
+// Retry fetch with exponential backoff
+async function fetchWithRetry(url: string, retries = 5, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const response = await fetch(url, {
+        signal: controller.signal,
+        redirect: 'follow',
+      });
+      clearTimeout(timeoutId);
+      if (response.ok) return response;
+      throw new Error(`HTTP ${response.status}`);
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+    }
+  }
+  throw new Error('Fetch failed after retries');
+}
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [clinicians, setClinicians] = useState<Clinician[]>([]);
@@ -56,8 +77,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setFileName(storedData.name);
         fileBufferRef.current = storedData.buffer;
       } else {
-        // Fall back to the bundled default file
-        const wb = await loadWorkbook(EXCEL_URL);
+        // Fall back to the bundled default file with retry
+        const response = await fetchWithRetry(EXCEL_URL);
+        const arrayBuffer = await response.arrayBuffer();
+        const wb = parseWorkbookFromBuffer(arrayBuffer);
         processWorkbook(wb);
         setFileName('Default dataset');
       }
