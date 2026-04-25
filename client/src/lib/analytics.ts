@@ -20,6 +20,19 @@ export interface PricingOverrides {
   getPatientCost: (testColumn: string) => number;
 }
 
+// Extended clinician data with patient counts, net revenue, and status
+export interface ClinicianBreakdown {
+  rank: number;
+  clinician: string;
+  patients: number;
+  tests: number;
+  revenue: number;
+  reportingFees: number;
+  net: number;
+  percentOfTotal: number;
+  status: 'above' | 'below' | 'dormant';
+}
+
 // Clinician name normalization — merges misspellings and variants
 const CLINICIAN_ALIASES: Record<string, string> = {
   'Dr. Arujuna': 'Dr Arujuna',
@@ -399,6 +412,155 @@ export function getInsuranceAnalysis(
       };
     })
     .sort((a, b) => b.totalReferrals - a.totalReferrals);
+}
+
+// ─── Unique patient count per clinician ───
+export function getUniquePatientCount(referrals: Referral[], clinicianName?: string): number {
+  const filtered = clinicianName
+    ? referrals.filter(r => normalizeClinician(r.referringConsultant) === clinicianName)
+    : referrals;
+  const patients = new Set<string>();
+  for (const r of filtered) {
+    if (r.patientName && r.patientName.trim().length > 1) {
+      patients.add(r.patientName.trim().toLowerCase());
+    }
+  }
+  return patients.size;
+}
+
+// ─── Private vs NHS revenue split ───
+export function getPrivateNHSSplit(
+  referrals: Referral[],
+  prices: SelfFundingPrice[],
+  overrides?: PricingOverrides
+): { privateRevenue: number; nhsRevenue: number; privatePatients: number; nhsPatients: number } {
+  let privateRevenue = 0;
+  let nhsRevenue = 0;
+  const privatePatients = new Set<string>();
+  const nhsPatients = new Set<string>();
+  for (const r of referrals) {
+    const ins = normalizeInsurance(r.insuranceDetails);
+    const isNHS = ins === 'NHS';
+    let rev = 0;
+    for (const [test, done] of Object.entries(r.tests)) {
+      if (done) {
+        rev += getRevenue(test, ins, overrides);
+      }
+    }
+    if (isNHS) {
+      nhsRevenue += rev;
+      if (r.patientName) nhsPatients.add(r.patientName.trim().toLowerCase());
+    } else {
+      privateRevenue += rev;
+      if (r.patientName) privatePatients.add(r.patientName.trim().toLowerCase());
+    }
+  }
+  return { privateRevenue, nhsRevenue, privatePatients: privatePatients.size, nhsPatients: nhsPatients.size };
+}
+
+// ─── Per-clinician breakdown with patients, net, status ───
+export function getClinicianBreakdown(
+  referrals: Referral[],
+  prices: SelfFundingPrice[],
+  overrides?: PricingOverrides
+): ClinicianBreakdown[] {
+  const grouped = new Map<string, Referral[]>();
+  for (const r of referrals) {
+    const name = normalizeClinician(r.referringConsultant);
+    if (!grouped.has(name)) grouped.set(name, []);
+    grouped.get(name)!.push(r);
+  }
+
+  const totalRevenue = calculateEstimatedRevenue(referrals, prices, overrides);
+
+  const rows = Array.from(grouped.entries())
+    .map(([clinician, refs]) => {
+      const patients = getUniquePatientCount(refs);
+      const tests = refs.reduce((sum, r) => sum + countTestsForReferral(r), 0);
+      const revenue = calculateEstimatedRevenue(refs, prices, overrides);
+      const reportingFees = calculateReportingFees(refs, prices, overrides);
+      const net = revenue - reportingFees;
+      const percentOfTotal = totalRevenue > 0 ? (revenue / totalRevenue) * 100 : 0;
+      return { rank: 0, clinician, patients, tests, revenue, reportingFees, net, percentOfTotal, status: 'above' as 'above' | 'below' | 'dormant' };
+    })
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Assign rank and status
+  for (let i = 0; i < rows.length; i++) {
+    rows[i] = {
+      ...rows[i],
+      rank: i + 1,
+      status: rows[i].tests === 0 ? 'dormant' : rows[i].percentOfTotal < 1 ? 'below' : 'above',
+    };
+  }
+
+  return rows;
+}
+
+// ─── Revenue by insurance provider (for bar chart) ───
+export function getRevenueByInsurer(
+  referrals: Referral[],
+  prices: SelfFundingPrice[],
+  overrides?: PricingOverrides
+): { insurer: string; revenue: number; reportingFees: number; count: number }[] {
+  const grouped = new Map<string, Referral[]>();
+  for (const r of referrals) {
+    const ins = normalizeInsurance(r.insuranceDetails);
+    if (ins === 'Cancelled' || ins === 'Unknown') continue;
+    if (!grouped.has(ins)) grouped.set(ins, []);
+    grouped.get(ins)!.push(r);
+  }
+  return Array.from(grouped.entries())
+    .map(([insurer, refs]) => ({
+      insurer,
+      revenue: calculateEstimatedRevenue(refs, prices, overrides),
+      reportingFees: calculateReportingFees(refs, prices, overrides),
+      count: refs.length,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+// ─── Top tests by revenue (ranked list) ───
+export function getTestsByRevenue(
+  referrals: Referral[],
+  prices: SelfFundingPrice[],
+  overrides?: PricingOverrides
+): { test: string; revenue: number; count: number; percentOfTotal: number }[] {
+  const testRevMap = new Map<string, { revenue: number; count: number }>();
+  let totalRevenue = 0;
+  for (const r of referrals) {
+    const insurance = normalizeInsurance(r.insuranceDetails);
+    for (const [test, done] of Object.entries(r.tests)) {
+      if (done) {
+        const rev = getRevenue(test, insurance, overrides);
+        if (!testRevMap.has(test)) testRevMap.set(test, { revenue: 0, count: 0 });
+        const entry = testRevMap.get(test)!;
+        entry.revenue += rev;
+        entry.count++;
+        totalRevenue += rev;
+      }
+    }
+  }
+  return Array.from(testRevMap.entries())
+    .map(([test, data]) => ({
+      test,
+      revenue: data.revenue,
+      count: data.count,
+      percentOfTotal: totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+// ─── Filter referrals by selected insurers ───
+export function filterReferralsByInsurers(
+  referrals: Referral[],
+  selectedInsurers: string[]
+): Referral[] {
+  if (selectedInsurers.length === 0) return referrals;
+  return referrals.filter(r => {
+    const ins = normalizeInsurance(r.insuranceDetails);
+    return selectedInsurers.includes(ins);
+  });
 }
 
 // Turnaround metrics
