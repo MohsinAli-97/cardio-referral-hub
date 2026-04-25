@@ -1,4 +1,5 @@
 name: Deploy to Hostinger
+
 on:
   push:
     branches:
@@ -15,20 +16,20 @@ jobs:
     defaults:
       run:
         working-directory: cardio-referral-hub
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: pnpm
-          # FIXED: This path is relative to the REPO ROOT, not the working-directory
-          cache-dependency-path: 'cardio-referral-hub/pnpm-lock.yaml'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -42,7 +43,5 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          # FIXED: Local-dir must point to the 'client' folder and end with /
-          local-dir: ./cardio-referral-hub/dist/public/client/
-          # FIXED: Server-dir must end with /
+          local-dir: ./cardio-referral-hub/dist/public/
           server-dir: ./public_html/
