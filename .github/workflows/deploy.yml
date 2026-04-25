@@ -4,9 +4,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+
 concurrency:
   group: deploy-hostinger-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -16,23 +18,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        # No version here: it will use the one in your package.json
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
-          cache-dependency-path: '/pnpm-lock.yaml'
+          # FIXED: Points to the lockfile inside your subfolder
+          cache-dependency-path: 'cardio-referral-hub/pnpm-lock.yaml'
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
       - name: Build
         run: pnpm run build
+
       - name: Deploy static site to Hostinger (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: cardio-referral-hub/dist/public/
-          server-dir: public_html/
+          # FIXED: Adjusted path. Ensure this folder exists after build!
+          # If your build folder is just 'dist', remove the '/public/' part.
+          local-dir: cardio-referral-hub/dist/
+          server-dir: ./public_html/
