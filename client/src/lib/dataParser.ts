@@ -134,8 +134,12 @@ function parseAMBPData(data: Record<string, unknown>[]): AMBPTracking[] {
     }));
 }
 
+export function parseWorkbookFromBuffer(buffer: ArrayBuffer): XLSX.WorkBook {
+  return XLSX.read(buffer, { type: 'array', cellDates: true });
+}
+
 export async function loadWorkbook(url: string): Promise<XLSX.WorkBook> {
   const response = await fetch(url);
   const arrayBuffer = await response.arrayBuffer();
-  return XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+  return parseWorkbookFromBuffer(arrayBuffer);
 }
