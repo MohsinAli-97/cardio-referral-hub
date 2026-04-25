@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: cardio-referral-hub
+        working-directory: .
 
     steps:
       - name: Checkout
@@ -23,7 +23,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        # no "version" here; it will use packageManager from package.json
+        # no version here (uses packageManager from package.json)
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -42,5 +42,5 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./cardio-referral-hub/dist/public/
+          local-dir: ./dist/public/
           server-dir: ./public_html/
