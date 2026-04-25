@@ -21,14 +21,14 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        # No version here: it will use the one in your package.json
+        # Uses the version defined in your package.json
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
-          # FIXED: Points to the lockfile inside your subfolder
+          # Path to lockfile inside your subfolder for caching
           cache-dependency-path: 'cardio-referral-hub/pnpm-lock.yaml'
 
       - name: Install dependencies
@@ -43,7 +43,8 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          # FIXED: Adjusted path. Ensure this folder exists after build!
-          # If your build folder is just 'dist', remove the '/public/' part.
-          local-dir: cardio-referral-hub/dist/
+          # This maps the "client" contents directly to public_html
+          local-dir: cardio-referral-hub/dist/public/client/
           server-dir: ./public_html/
+          # Optional: Cleans up old files on Hostinger before uploading new ones
+          delete-destination-before-upload: false
