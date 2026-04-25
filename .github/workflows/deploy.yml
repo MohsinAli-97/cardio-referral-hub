@@ -1,0 +1,35 @@
+name: Build and Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main  # Only runs when you push to the main branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Change to your version if needed
+
+      - name: Install Dependencies and Build
+        run: |
+          npm install
+          npm run build
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # This is the folder created by your build command (usually 'dist' or 'build')
+          local-dir: ./dist/ 
+          # The path on Hostinger (usually /public_html/)
+          server-dir: ./public_html/
