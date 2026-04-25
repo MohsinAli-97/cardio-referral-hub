@@ -15,6 +15,7 @@ import Clinicians from "./pages/Clinicians";
 import InsuranceFees from "./pages/InsuranceFees";
 import InsuranceAnalysis from "./pages/InsuranceAnalysis";
 import PricingManagement from "./pages/PricingManagement";
+import ClinicianTestMatrix from "./pages/ClinicianTestMatrix";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/insurance-fees" component={InsuranceFees} />
         <Route path="/insurance-analysis" component={InsuranceAnalysis} />
         <Route path="/pricing" component={PricingManagement} />
+        <Route path="/test-matrix" component={ClinicianTestMatrix} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

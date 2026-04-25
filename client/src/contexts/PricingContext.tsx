@@ -84,7 +84,7 @@ const TEST_COLUMN_TO_PRICING: Record<string, string> = {
   'AMBP': '24H Blood Pressure Monitor',
   'ECG': 'Resting ECG',
   'Bloods': 'Full Blood Tests',
-  'FLM Panel': 'Full Blood Tests',
+  'FLM Panel': 'FLM Panel',
   'Iron infusion': 'Iron Infusion',
   'Carotid Doppler': 'Carotid Doppler',
   'Arterial Doppler': 'Arterial Doppler',
