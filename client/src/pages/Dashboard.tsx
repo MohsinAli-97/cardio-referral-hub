@@ -3,6 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { usePricing } from '@/contexts/PricingContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -38,6 +39,8 @@ const TIME_FILTERS: { value: TimeFilter; label: string }[] = [
 
 export default function Dashboard() {
   const { referrals, prices, loading, error } = useData();
+  const { getReportingFee, getPatientCost } = usePricing();
+  const pricingOverrides = useMemo(() => ({ getReportingFee, getPatientCost }), [getReportingFee, getPatientCost]);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
 
   const { start, end } = useMemo(() => getDateRange(timeFilter), [timeFilter]);
@@ -53,13 +56,13 @@ export default function Dashboard() {
   );
 
   const estimatedRevenue = useMemo(
-    () => calculateEstimatedRevenue(filtered, prices),
-    [filtered, prices]
+    () => calculateEstimatedRevenue(filtered, prices, pricingOverrides),
+    [filtered, prices, pricingOverrides]
   );
 
   const reportingFees = useMemo(
-    () => calculateReportingFees(filtered, prices),
-    [filtered, prices]
+    () => calculateReportingFees(filtered, prices, pricingOverrides),
+    [filtered, prices, pricingOverrides]
   );
 
   const testBreakdown = useMemo(() => {
@@ -71,8 +74,8 @@ export default function Dashboard() {
   }, [filtered]);
 
   const topClinicians = useMemo(
-    () => getTopClinicians(filtered, prices, 8),
-    [filtered, prices]
+    () => getTopClinicians(filtered, prices, 8, pricingOverrides),
+    [filtered, prices, pricingOverrides]
   );
 
   const insuranceData = useMemo(() => {

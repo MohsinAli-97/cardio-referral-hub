@@ -1,14 +1,24 @@
 // NHC Cardio Referral Hub — Analytics & Revenue Calculations
+// All revenue/fee functions accept optional pricing overrides from PricingContext
 import {
   startOfDay, endOfDay, startOfWeek, endOfWeek,
   startOfMonth, endOfMonth, startOfYear, endOfYear,
   parseISO, isWithinInterval, format, eachDayOfInterval,
-  eachWeekOfInterval, eachMonthOfInterval,
+  eachMonthOfInterval,
 } from 'date-fns';
 import {
   Referral, SelfFundingPrice, TimeFilter,
-  ClinicianRevenue, TEST_TO_PRICE_MAP, NORMALIZED_INSURANCE,
+  ClinicianRevenue, TEST_TO_PRICE_MAP,
+  getInsuranceFee as getStaticInsuranceFee,
+  TEST_TO_FEE_SCHEDULE_MAP, INSURANCE_FEE_SCHEDULE,
 } from './types';
+
+// ─── Pricing override type ───
+// When provided, these functions from PricingContext replace the static lookups
+export interface PricingOverrides {
+  getReportingFee: (testColumn: string, insurance: string) => number;
+  getPatientCost: (testColumn: string) => number;
+}
 
 // Clinician name normalization — merges misspellings and variants
 const CLINICIAN_ALIASES: Record<string, string> = {
@@ -46,7 +56,6 @@ export function normalizeInsurance(raw: string): string {
   const trimmed = raw.trim().toUpperCase();
   if (!trimmed || trimmed.length < 2) return 'Unknown';
   
-  // Fuzzy keyword matching for insurance types
   if (trimmed.includes('AXA')) return 'AXA';
   if (trimmed.includes('BUPA')) return 'BUPA';
   if (trimmed.includes('VITALITY') || trimmed.includes('VTIALITY') || trimmed.includes('VTALITY')) return 'Vitality';
@@ -65,6 +74,29 @@ export function normalizeInsurance(raw: string): string {
   
   return 'Other';
 }
+
+// ─── Helper: get fee for a test+insurance, using overrides if available ───
+function getFee(testColumn: string, insurance: string, overrides?: PricingOverrides): number {
+  if (overrides) {
+    return overrides.getReportingFee(testColumn, insurance);
+  }
+  return getStaticInsuranceFee(testColumn, insurance);
+}
+
+function getRevenue(testColumn: string, insurance: string, overrides?: PricingOverrides): number {
+  if (overrides) {
+    return overrides.getPatientCost(testColumn);
+  }
+  // Static fallback
+  const feeTestName = TEST_TO_FEE_SCHEDULE_MAP[testColumn];
+  if (feeTestName) {
+    const feeRow = INSURANCE_FEE_SCHEDULE.find(f => f.test === feeTestName);
+    if (feeRow) return feeRow.sfPatientCost;
+  }
+  return 0;
+}
+
+// ─── Date helpers ───
 
 export function getDateRange(filter: TimeFilter, customDate?: Date): { start: Date; end: Date } {
   const now = customDate || new Date();
@@ -125,23 +157,28 @@ export function getTestBreakdown(referrals: Referral[]): Record<string, number> 
   return breakdown;
 }
 
+// ─── Revenue / Fee calculations (with optional pricing overrides) ───
+
 export function calculateReportingFees(
   referrals: Referral[],
-  prices: SelfFundingPrice[]
+  prices: SelfFundingPrice[],
+  overrides?: PricingOverrides
 ): number {
-  const priceMap = new Map<string, number>();
-  for (const p of prices) {
-    priceMap.set(p.test, p.reportingFee);
-  }
-
   let total = 0;
   for (const r of referrals) {
+    const insurance = normalizeInsurance(r.insuranceDetails);
     for (const [test, done] of Object.entries(r.tests)) {
       if (done) {
-        const priceKey = TEST_TO_PRICE_MAP[test];
-        if (priceKey) {
-          const fee = priceMap.get(priceKey);
-          if (fee) total += fee;
+        const fee = getFee(test, insurance, overrides);
+        if (fee > 0) {
+          total += fee;
+        } else if (!overrides) {
+          // Fallback to self-funding prices sheet only when no overrides
+          const priceKey = TEST_TO_PRICE_MAP[test];
+          if (priceKey) {
+            const p = prices.find(pr => pr.test === priceKey);
+            if (p) total += p.reportingFee;
+          }
         }
       }
     }
@@ -151,21 +188,26 @@ export function calculateReportingFees(
 
 export function calculateEstimatedRevenue(
   referrals: Referral[],
-  prices: SelfFundingPrice[]
+  prices: SelfFundingPrice[],
+  overrides?: PricingOverrides
 ): number {
-  const priceMap = new Map<string, number>();
-  for (const p of prices) {
-    priceMap.set(p.test, p.sfPrice);
-  }
-
   let total = 0;
   for (const r of referrals) {
+    const insurance = normalizeInsurance(r.insuranceDetails);
     for (const [test, done] of Object.entries(r.tests)) {
       if (done) {
-        const priceKey = TEST_TO_PRICE_MAP[test];
-        if (priceKey) {
-          const price = priceMap.get(priceKey);
-          if (price) total += price;
+        const rev = getRevenue(test, insurance, overrides);
+        if (rev > 0) {
+          total += rev;
+          continue;
+        }
+        if (!overrides) {
+          // Fallback to self-funding prices sheet
+          const priceKey = TEST_TO_PRICE_MAP[test];
+          if (priceKey) {
+            const p = prices.find(pr => pr.test === priceKey);
+            if (p) total += p.sfPrice;
+          }
         }
       }
     }
@@ -175,7 +217,8 @@ export function calculateEstimatedRevenue(
 
 export function getClinicianRevenue(
   referrals: Referral[],
-  prices: SelfFundingPrice[]
+  prices: SelfFundingPrice[],
+  overrides?: PricingOverrides
 ): ClinicianRevenue[] {
   const grouped = new Map<string, Referral[]>();
   for (const r of referrals) {
@@ -189,8 +232,8 @@ export function getClinicianRevenue(
       clinician,
       referralCount: refs.length,
       testBreakdown: getTestBreakdown(refs),
-      estimatedRevenue: calculateEstimatedRevenue(refs, prices),
-      reportingFees: calculateReportingFees(refs, prices),
+      estimatedRevenue: calculateEstimatedRevenue(refs, prices, overrides),
+      reportingFees: calculateReportingFees(refs, prices, overrides),
     }))
     .sort((a, b) => b.referralCount - a.referralCount);
 }
@@ -258,9 +301,10 @@ export function getTimeSeriesData(
 export function getTopClinicians(
   referrals: Referral[],
   prices: SelfFundingPrice[],
-  limit = 10
+  limit = 10,
+  overrides?: PricingOverrides
 ): ClinicianRevenue[] {
-  return getClinicianRevenue(referrals, prices).slice(0, limit);
+  return getClinicianRevenue(referrals, prices, overrides).slice(0, limit);
 }
 
 export function getReportingFeesByClinicianAndTest(
@@ -268,13 +312,9 @@ export function getReportingFeesByClinicianAndTest(
   clinicianName: string,
   prices: SelfFundingPrice[],
   startDate: string,
-  endDate: string
-): { test: string; count: number; unitFee: number; total: number; patients: string[] }[] {
-  const priceMap = new Map<string, number>();
-  for (const p of prices) {
-    priceMap.set(p.test, p.reportingFee);
-  }
-
+  endDate: string,
+  overrides?: PricingOverrides
+): { test: string; count: number; unitFee: number; total: number; patients: string[]; insurance: string }[] {
   const filtered = referrals.filter(
     (r) =>
       normalizeClinician(r.referringConsultant) === clinicianName &&
@@ -283,15 +323,17 @@ export function getReportingFeesByClinicianAndTest(
       r.referralReceived <= endDate
   );
 
-  const testMap = new Map<string, { count: number; patients: string[] }>();
+  const testInsMap = new Map<string, { count: number; patients: string[]; insurance: string }>();
 
   for (const r of filtered) {
+    const insurance = normalizeInsurance(r.insuranceDetails);
     for (const [test, done] of Object.entries(r.tests)) {
       if (done) {
-        const priceKey = TEST_TO_PRICE_MAP[test];
-        if (priceKey && priceMap.has(priceKey)) {
-          if (!testMap.has(test)) testMap.set(test, { count: 0, patients: [] });
-          const entry = testMap.get(test)!;
+        const fee = getFee(test, insurance, overrides);
+        if (fee > 0) {
+          const key = `${test}|${insurance}`;
+          if (!testInsMap.has(key)) testInsMap.set(key, { count: 0, patients: [], insurance });
+          const entry = testInsMap.get(key)!;
           entry.count++;
           if (r.patientName) entry.patients.push(r.patientName);
         }
@@ -299,18 +341,121 @@ export function getReportingFeesByClinicianAndTest(
     }
   }
 
-  return Array.from(testMap.entries())
-    .map(([test, data]) => {
-      const priceKey = TEST_TO_PRICE_MAP[test];
-      const unitFee = priceKey ? priceMap.get(priceKey) || 0 : 0;
+  return Array.from(testInsMap.entries())
+    .map(([key, data]) => {
+      const [test] = key.split('|');
+      const unitFee = getFee(test, data.insurance, overrides);
       return {
         test,
         count: data.count,
         unitFee,
         total: data.count * unitFee,
         patients: data.patients,
+        insurance: data.insurance,
       };
     })
     .filter((item) => item.total > 0)
     .sort((a, b) => b.total - a.total);
+}
+
+// Insurance Analysis — breakdown by insurance provider with revenue
+export function getInsuranceAnalysis(
+  referrals: Referral[],
+  prices: SelfFundingPrice[],
+  overrides?: PricingOverrides
+): {
+  insurance: string;
+  totalReferrals: number;
+  percentOfTotal: number;
+  totalTests: number;
+  avgTestsPerReferral: number;
+  uniqueClinicians: number;
+  reportingFees: number;
+  estimatedRevenue: number;
+}[] {
+  const grouped = new Map<string, Referral[]>();
+  for (const r of referrals) {
+    const ins = normalizeInsurance(r.insuranceDetails);
+    if (ins === 'Cancelled' || ins === 'Unknown') continue;
+    if (!grouped.has(ins)) grouped.set(ins, []);
+    grouped.get(ins)!.push(r);
+  }
+
+  const totalCount = referrals.length;
+
+  return Array.from(grouped.entries())
+    .map(([insurance, refs]) => {
+      const totalTests = refs.reduce((sum, r) => sum + countTestsForReferral(r), 0);
+      const clinicians = new Set(refs.map(r => normalizeClinician(r.referringConsultant)));
+      return {
+        insurance,
+        totalReferrals: refs.length,
+        percentOfTotal: totalCount > 0 ? (refs.length / totalCount) * 100 : 0,
+        totalTests,
+        avgTestsPerReferral: refs.length > 0 ? Math.round((totalTests / refs.length) * 10) / 10 : 0,
+        uniqueClinicians: clinicians.size,
+        reportingFees: calculateReportingFees(refs, prices, overrides),
+        estimatedRevenue: calculateEstimatedRevenue(refs, prices, overrides),
+      };
+    })
+    .sort((a, b) => b.totalReferrals - a.totalReferrals);
+}
+
+// Turnaround metrics
+export function getTurnaroundMetrics(referrals: Referral[]): {
+  avgReferralToAppt: number;
+  avgApptToResults: number;
+  medianReferralToAppt: number;
+  medianApptToResults: number;
+  completionRate: number;
+  resultsSent: number;
+  resultsPending: number;
+} {
+  const refToApptDays: number[] = [];
+  const apptToResultDays: number[] = [];
+  let resultsSent = 0;
+  let resultsPending = 0;
+
+  for (const r of referrals) {
+    const hasResults = !!r.sentResults;
+    if (hasResults) resultsSent++;
+    else resultsPending++;
+
+    if (r.referralReceived && r.dateOfAppt) {
+      try {
+        const refDate = parseISO(r.referralReceived);
+        const apptDate = parseISO(r.dateOfAppt);
+        const diff = Math.round((apptDate.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff >= 0 && diff < 365) refToApptDays.push(diff);
+      } catch { /* skip */ }
+    }
+
+    if (r.dateOfAppt && r.sentResults) {
+      try {
+        const apptDate = parseISO(r.dateOfAppt);
+        const resultDate = parseISO(r.sentResults);
+        const diff = Math.round((resultDate.getTime() - apptDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff >= 0 && diff < 365) apptToResultDays.push(diff);
+      } catch { /* skip */ }
+    }
+  }
+
+  const median = (arr: number[]) => {
+    if (arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+
+  const avg = (arr: number[]) => arr.length > 0 ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : 0;
+
+  return {
+    avgReferralToAppt: avg(refToApptDays),
+    avgApptToResults: avg(apptToResultDays),
+    medianReferralToAppt: median(refToApptDays),
+    medianApptToResults: median(apptToResultDays),
+    completionRate: referrals.length > 0 ? Math.round((resultsSent / referrals.length) * 1000) / 10 : 0,
+    resultsSent,
+    resultsPending,
+  };
 }

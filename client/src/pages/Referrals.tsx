@@ -1,9 +1,9 @@
 // NHC Cardio Referral Hub — Referrals Table Page
-// Searchable, filterable table of all referral data
+// Searchable, filterable table — NO patient-identifiable data shown
 
 import { useState, useMemo } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -55,7 +55,6 @@ export default function Referrals() {
       const q = search.toLowerCase();
       result = result.filter(
         (r) =>
-          r.patientName.toLowerCase().includes(q) ||
           r.referringConsultant.toLowerCase().includes(q) ||
           r.testsNeeded.toLowerCase().includes(q) ||
           r.comments.toLowerCase().includes(q)
@@ -102,7 +101,7 @@ export default function Referrals() {
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1400px]">
       <div>
-        <h1 className="text-2xl lg:text-3xl font-normal text-foreground tracking-wide">
+        <h1 className="text-2xl lg:text-3xl font-bold tracking-tight font-[Tenor_Sans,serif] text-[#1e2a3a]">
           Referrals
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -117,7 +116,7 @@ export default function Referrals() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search patients, clinicians, tests..."
+                placeholder="Search clinicians, tests..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="pl-9"
@@ -155,13 +154,14 @@ export default function Referrals() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-muted/50">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Patient</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Clinician</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Referral Date</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Insurance</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Tests</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Status</th>
+              <tr className="bg-[#1e2a3a] text-white">
+                <th className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider">#</th>
+                <th className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider">Clinician</th>
+                <th className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider">Referral Date</th>
+                <th className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider">Appt Date</th>
+                <th className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider">Insurance</th>
+                <th className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider">Tests</th>
+                <th className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -169,18 +169,13 @@ export default function Referrals() {
                 const ins = normalizeInsurance(r.insuranceDetails);
                 const activeTests = getActiveTests(r.tests);
                 const hasResults = !!r.sentResults;
+                const rowNum = (page - 1) * PAGE_SIZE + i + 1;
                 return (
-                  <tr key={i} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium text-foreground">{r.patientName || '—'}</p>
-                        {r.dob && (
-                          <p className="text-xs text-muted-foreground">DOB: {formatDate(r.dob)}</p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-foreground">{normalizeClinician(r.referringConsultant)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatDate(r.referralReceived)}</td>
+                  <tr key={i} className={`hover:bg-muted/30 transition-colors ${i % 2 === 0 ? '' : 'bg-muted/20'}`}>
+                    <td className="px-4 py-3 text-muted-foreground tabular-nums text-xs">{rowNum}</td>
+                    <td className="px-4 py-3 font-medium text-foreground">{normalizeClinician(r.referringConsultant)}</td>
+                    <td className="px-4 py-3 text-muted-foreground tabular-nums">{formatDate(r.referralReceived)}</td>
+                    <td className="px-4 py-3 text-muted-foreground tabular-nums">{formatDate(r.dateOfAppt)}</td>
                     <td className="px-4 py-3">
                       <Badge
                         variant="secondary"

@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Users, FileText, Receipt,
   Activity, ChevronLeft, ChevronRight, RefreshCw,
   Menu, Upload, X, FileSpreadsheet, CheckCircle2,
+  Shield, PoundSterling, Settings2,
 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { format } from 'date-fns';
@@ -16,7 +17,10 @@ const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/referrals', label: 'Referrals', icon: Activity },
   { path: '/reports', label: 'Revenue Reports', icon: FileText },
+  { path: '/insurance-fees', label: 'Reporting Fees', icon: PoundSterling },
+  { path: '/insurance-analysis', label: 'Insurance Analysis', icon: Shield },
   { path: '/invoices', label: 'Invoices', icon: Receipt },
+  { path: '/pricing', label: 'Pricing', icon: Settings2 },
   { path: '/clinicians', label: 'Clinicians', icon: Users },
 ];
 

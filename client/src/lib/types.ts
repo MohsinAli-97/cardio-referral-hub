@@ -121,6 +121,83 @@ export const INSURANCE_TYPES = [
   'SE:LF FUNDING', 'SELF FUNDING '
 ] as const;
 
+// Insurance Reporting Fees Schedule from the NHC Cardiologist Brochure
+// Fees NHC pays TO the cardiologist per test, by insurance provider
+export interface InsuranceFeeRow {
+  test: string;
+  healix: number;
+  axaPPP: number;
+  allianz: number;
+  cigna: number;
+  wpa: number;
+  bupa: number;
+  vitality: number;
+  aviva: number;
+  selfPay: number;
+  sfPatientCost: number;
+}
+
+export const INSURANCE_FEE_SCHEDULE: InsuranceFeeRow[] = [
+  { test: 'Exercise Stress Echocardiogram', healix: 400, axaPPP: 375, allianz: 400, cigna: 400, wpa: 350, bupa: 350, vitality: 300, aviva: 350, selfPay: 350, sfPatientCost: 850 },
+  { test: '14 Day Holter', healix: 400, axaPPP: 400, allianz: 400, cigna: 400, wpa: 400, bupa: 400, vitality: 300, aviva: 400, selfPay: 300, sfPatientCost: 900 },
+  { test: '7 Day Holter', healix: 350, axaPPP: 300, allianz: 300, cigna: 350, wpa: 350, bupa: 300, vitality: 200, aviva: 300, selfPay: 250, sfPatientCost: 750 },
+  { test: '72 Hour Holter', healix: 250, axaPPP: 200, allianz: 250, cigna: 250, wpa: 200, bupa: 100, vitality: 150, aviva: 200, selfPay: 200, sfPatientCost: 590 },
+  { test: '48 Hour Holter', healix: 150, axaPPP: 200, allianz: 150, cigna: 150, wpa: 150, bupa: 100, vitality: 150, aviva: 150, selfPay: 200, sfPatientCost: 490 },
+  { test: '24 Hour Holter', healix: 125, axaPPP: 100, allianz: 125, cigna: 125, wpa: 100, bupa: 100, vitality: 100, aviva: 100, selfPay: 150, sfPatientCost: 390 },
+  { test: 'Echocardiogram', healix: 200, axaPPP: 150, allianz: 200, cigna: 130, wpa: 200, bupa: 130, vitality: 130, aviva: 150, selfPay: 180, sfPatientCost: 490 },
+  { test: 'Bubble Echocardiogram', healix: 300, axaPPP: 300, allianz: 300, cigna: 300, wpa: 300, bupa: 300, vitality: 300, aviva: 300, selfPay: 300, sfPatientCost: 800 },
+  { test: 'Exercise Tolerance Test', healix: 150, axaPPP: 90, allianz: 150, cigna: 150, wpa: 100, bupa: 90, vitality: 90, aviva: 150, selfPay: 125, sfPatientCost: 390 },
+  { test: '24H Blood Pressure Monitor', healix: 150, axaPPP: 125, allianz: 150, cigna: 150, wpa: 150, bupa: 100, vitality: 150, aviva: 125, selfPay: 150, sfPatientCost: 390 },
+  { test: 'Resting ECG', healix: 50, axaPPP: 50, allianz: 50, cigna: 50, wpa: 50, bupa: 50, vitality: 50, aviva: 50, selfPay: 50, sfPatientCost: 150 },
+  { test: 'Full Blood Tests', healix: 150, axaPPP: 150, allianz: 150, cigna: 150, wpa: 150, bupa: 150, vitality: 150, aviva: 150, selfPay: 100, sfPatientCost: 590 },
+  { test: 'Iron Infusion', healix: 100, axaPPP: 100, allianz: 100, cigna: 100, wpa: 100, bupa: 100, vitality: 100, aviva: 100, selfPay: 150, sfPatientCost: 800 },
+  { test: 'Carotid Doppler', healix: 50, axaPPP: 50, allianz: 50, cigna: 50, wpa: 50, bupa: 50, vitality: 50, aviva: 50, selfPay: 50, sfPatientCost: 390 },
+  { test: 'Arterial Doppler', healix: 50, axaPPP: 50, allianz: 50, cigna: 50, wpa: 50, bupa: 50, vitality: 50, aviva: 50, selfPay: 50, sfPatientCost: 400 },
+  { test: 'Venous Doppler', healix: 50, axaPPP: 50, allianz: 50, cigna: 50, wpa: 50, bupa: 50, vitality: 50, aviva: 50, selfPay: 50, sfPatientCost: 400 },
+];
+
+// Map test column names to brochure fee schedule test names
+export const TEST_TO_FEE_SCHEDULE_MAP: Record<string, string> = {
+  'ESE': 'Exercise Stress Echocardiogram',
+  '14-day Holter': '14 Day Holter',
+  '7-day Holter': '7 Day Holter',
+  '72-hour Holter': '72 Hour Holter',
+  '48-hour Holter': '48 Hour Holter',
+  '24-hour Holter': '24 Hour Holter',
+  'Echo': 'Echocardiogram',
+  'Bubble Echo': 'Bubble Echocardiogram',
+  'ETT': 'Exercise Tolerance Test',
+  'AMBP': '24H Blood Pressure Monitor',
+  'ECG': 'Resting ECG',
+  'Bloods': 'Full Blood Tests',
+  'FLM Panel': 'Full Blood Tests',
+  'Iron infusion': 'Iron Infusion',
+  'Carotid Doppler': 'Carotid Doppler',
+  'Arterial Doppler': 'Arterial Doppler',
+  'Venous Doppler': 'Venous Doppler',
+};
+
+// Get reporting fee for a test based on insurance provider
+export function getInsuranceFee(testColumn: string, insurance: string): number {
+  const feeTestName = TEST_TO_FEE_SCHEDULE_MAP[testColumn];
+  if (!feeTestName) return 0;
+  const row = INSURANCE_FEE_SCHEDULE.find(r => r.test === feeTestName);
+  if (!row) return 0;
+  
+  const insLower = insurance.toLowerCase();
+  if (insLower.includes('healix')) return row.healix;
+  if (insLower.includes('axa')) return row.axaPPP;
+  if (insLower.includes('allianz')) return row.allianz;
+  if (insLower.includes('cigna')) return row.cigna;
+  if (insLower.includes('wpa')) return row.wpa;
+  if (insLower.includes('bupa')) return row.bupa;
+  if (insLower.includes('vitality')) return row.vitality;
+  if (insLower.includes('aviva')) return row.aviva;
+  if (insLower.includes('self')) return row.selfPay;
+  // Default to self-pay for unknown
+  return row.selfPay;
+}
+
 export const NORMALIZED_INSURANCE: Record<string, string> = {
   'AXA': 'AXA',
   'AXA - NOT HAPPENED': 'AXA',

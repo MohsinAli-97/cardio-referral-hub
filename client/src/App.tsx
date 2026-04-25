@@ -5,12 +5,16 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { DataProvider } from "./contexts/DataContext";
+import { PricingProvider } from "./contexts/PricingContext";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Referrals from "./pages/Referrals";
 import Reports from "./pages/Reports";
 import Invoices from "./pages/Invoices";
 import Clinicians from "./pages/Clinicians";
+import InsuranceFees from "./pages/InsuranceFees";
+import InsuranceAnalysis from "./pages/InsuranceAnalysis";
+import PricingManagement from "./pages/PricingManagement";
 
 function Router() {
   return (
@@ -21,6 +25,9 @@ function Router() {
         <Route path="/reports" component={Reports} />
         <Route path="/invoices" component={Invoices} />
         <Route path="/clinicians" component={Clinicians} />
+        <Route path="/insurance-fees" component={InsuranceFees} />
+        <Route path="/insurance-analysis" component={InsuranceAnalysis} />
+        <Route path="/pricing" component={PricingManagement} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
@@ -34,8 +41,10 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <DataProvider>
-            <Toaster />
-            <Router />
+            <PricingProvider>
+              <Toaster />
+              <Router />
+            </PricingProvider>
           </DataProvider>
         </TooltipProvider>
       </ThemeProvider>

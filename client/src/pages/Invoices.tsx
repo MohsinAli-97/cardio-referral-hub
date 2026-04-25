@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { usePricing } from '@/contexts/PricingContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,8 @@ import autoTable from 'jspdf-autotable';
 
 export default function Invoices() {
   const { referrals, prices, clinicians, loading, error } = useData();
+  const { getReportingFee, getPatientCost } = usePricing();
+  const pricingOverrides = useMemo(() => ({ getReportingFee, getPatientCost }), [getReportingFee, getPatientCost]);
 
   const lastMonth = subMonths(new Date(), 1);
   const [selectedClinician, setSelectedClinician] = useState('');
@@ -35,9 +38,9 @@ export default function Invoices() {
   const invoiceItems = useMemo(() => {
     if (!selectedClinician) return [];
     return getReportingFeesByClinicianAndTest(
-      referrals, selectedClinician, prices, startDate, endDate
+      referrals, selectedClinician, prices, startDate, endDate, pricingOverrides
     );
-  }, [referrals, selectedClinician, prices, startDate, endDate]);
+  }, [referrals, selectedClinician, prices, startDate, endDate, pricingOverrides]);
 
   const totalAmount = useMemo(
     () => invoiceItems.reduce((sum, item) => sum + item.total, 0),
@@ -375,10 +378,11 @@ export default function Invoices() {
                         <tr key={item.test} className="hover:bg-muted/20">
                           <td className="px-4 py-3">
                             <p className="font-medium text-foreground">{item.test}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {item.patients.slice(0, 3).join(', ')}
-                              {item.patients.length > 3 && ` +${item.patients.length - 3} more`}
-                            </p>
+                            {item.insurance && item.insurance !== 'Self-Funded' && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                via {item.insurance}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-center text-muted-foreground">{item.count}</td>
                           <td className="px-4 py-3 text-right text-muted-foreground">£{item.unitFee.toFixed(2)}</td>
